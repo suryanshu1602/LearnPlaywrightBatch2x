@@ -408,6 +408,16 @@ LearnPlaywrightBatch2x/
 │   ├── 220_READONLY.ts                 # readonly class fields
 │   └── 221_Abstract_Class.ts           # abstract class — forced contract + shared code
 │
+├── chapter_31_Type_Overide_Decortors/  ✅ TypeScript — type assertions, override, decorators
+│   ├── 222_Type_As.ts                  # `as` assertion — unknown → typed interface
+│   ├── 223_Type_Alias_As.ts            # assert an API response shape onto unknown JSON
+│   ├── 224_Override.ts                 # `override` keyword — child redefines base method
+│   ├── 225_IQ.ts                       # override IQ — parent ref calls parent method
+│   ├── 226_Decorator.ts                # method decorator — @Log wraps add() to trace args
+│   ├── 227_Decortors_2.ts              # decorator returning a replacement function
+│   ├── 228_Multiple_Decor.ts           # stacking decorators — bottom-up application order
+│   └── tsconfig.json                   # local TS config — experimentalDecorators: true
+│
 ├── tsconfig.json                       ⚙️  TS compiler config (strict, nodenext, esnext)
 │
 └── README.md                           👋 You are here
@@ -4797,6 +4807,85 @@ node 221_Abstract_Class.ts
 
 ---
 
+## 📖 What's in Chapter 31 — Type Assertions, Override & Decorators (Available Now)
+
+Three power features that show up all over real Playwright/POM code: **type assertions** (`as`) to tell the compiler the shape of an `unknown` value, the **`override`** keyword to safely redefine a parent method, and **decorators** (`@Log`) to wrap methods with cross-cutting behaviour.
+
+| File | Topic | What you'll learn |
+|------|-------|-------------------|
+| `222_Type_As.ts` | Type assertion | `element as elementI` — treat `unknown` as a known interface |
+| `223_Type_Alias_As.ts` | Asserting a response | Cast raw `unknown` JSON to a typed `UserResponse` before reading fields |
+| `224_Override.ts` | `override` keyword | `LoginTest`/`APITest` each `override` `nihit_ready()` from `BaseTest` |
+| `225_IQ.ts` | Override IQ | A parent reference calls the **parent's** method — override is per-instance |
+| `226_Decorator.ts` | Method decorator | `@Log` rewrites `descriptor.value` to trace call args, then delegates |
+| `227_Decortors_2.ts` | Replacement decorator | Decorator returns a **new function** that runs before the original |
+| `228_Multiple_Decor.ts` | Stacked decorators | Two decorators on one method — applied bottom-up, run top-down |
+
+**Concept:** `as` is a compile-time promise ("trust me, this `unknown` is really this type") — no runtime check, no cost. `override` marks a method as intentionally replacing a base one, so a typo or a signature drift becomes a compile error. A decorator is a function that receives a method and wraps or replaces it, letting you add logging/timing/retry without touching the method body.
+
+**Why:** Playwright hands back `unknown`/`any` from `evaluate()` and API responses — `as` types them so autocomplete and checks work. POM base pages get overridden per page; `override` stops silent mismatches. Decorators are how you bolt `@step`/`@retry`/`@log` onto test actions in one line.
+
+**Q&A — why use this?**
+- **Q: Does `as` convert the value at runtime?** A: No. It's erased after compilation — purely a hint to the type checker. Assert the wrong shape and you get a runtime crash, not a caught error. Validate untrusted data instead of blindly asserting.
+- **Q: What does `override` actually buy me?** A: Safety. Enable `noImplicitOverride` and TS errors if you *forget* `override`, or if the base method you're overriding is renamed/removed — catching broken POM inheritance at compile time.
+- **Q: Which way do stacked decorators run?** A: They're **applied** bottom-to-top (`@BeforeSomeSomeThing` wraps first), so at call time the **top** decorator's code runs first. Decorators need `"experimentalDecorators": true` in `tsconfig.json`.
+
+```mermaid
+flowchart TD
+    subgraph AS["Type Assertion (as)"]
+        U[unknown JSON] -->|as UserResponse| T[typed object] --> R[read .status, .body]
+    end
+    subgraph OV["override"]
+        Base[BaseTest.nihit_ready] --> Child["LoginTest override nihit_ready"]
+    end
+    subgraph DEC["Decorators"]
+        M[add&#40;a,b&#41;] -->|@Log wraps| W[log args → call original → return]
+    end
+    style AS fill:#e0f7fa,stroke:#00838f
+    style OV fill:#f3e5f5,stroke:#7b1fa2
+    style DEC fill:#fff3e0,stroke:#e65100
+```
+
+```ts
+// 222_Type_As.ts — assert unknown onto a known shape
+let element: unknown = { tagName: "Button", textContent: "Submit", id: "submit-btn", disabled: false };
+interface elementI { tagName: string; textContent: string; id: string; disabled: boolean }
+let button = element as elementI;        // compile-time cast, zero runtime cost
+console.log("Tag:", button.tagName);     // Button
+
+// 224_Override.ts — override a base method safely
+class BaseTest { nihit_ready(): void { console.log("[BASE] Open browser"); } }
+class LoginTest extends BaseTest {
+  override nihit_ready(): void { console.log("[LoginTest] Open browser"); }
+}
+new LoginTest().nihit_ready();           // [LoginTest] Open browser
+
+// 226_Decorator.ts — a method decorator that traces calls
+function Log(target: any, methodName: string, descriptor: PropertyDescriptor) {
+  const original = descriptor.value;
+  descriptor.value = function (...args: any[]) {
+    console.log(`Called ${methodName} with args:`, args);
+    return original.apply(this, args);
+  };
+}
+class Calculator { @Log add(a: number, b: number) { return a + b; } }
+new Calculator().add(2, 3);              // Called add with args: [2, 3]
+```
+
+### Run them
+
+```bash
+cd chapter_31_Type_Overide_Decortors
+npx tsx 222_Type_As.ts       # → Tag/Text/ID/Disabled from asserted object
+npx tsx 224_Override.ts      # → each subclass runs its own nihit_ready()
+npx tsx 226_Decorator.ts     # → logs args, then returns 5
+npx tsx 228_Multiple_Decor.ts # → EAT then SLEEP then woof (top decorator runs first)
+```
+
+> Decorators need `experimentalDecorators: true` — set in this chapter's local `tsconfig.json` and in the root config.
+
+---
+
 ## 🔭 What's Coming Next
 
 ```mermaid
@@ -4812,7 +4901,8 @@ graph TD
         N8 --> N9[Ch 28: Enums ✅]
         N9 --> N10[Ch 29: Generics ✅]
         N10 --> N11[Ch 30: Access Modifiers + Abstract ✅]
-        N11 --> N12[Ch 31: Locators & POM]
+        N11 --> N12[Ch 31: Type Assertions, Override + Decorators ✅]
+        N12 --> N13[Ch 32: Playwright Fundamentals]
     end
 
     style next fill:#fff3e0,stroke:#e65100
@@ -4849,6 +4939,7 @@ graph TD
 - ✅ Chapter 28 — **Enums**: string enums as named constant sets, enum-as-type params, enum in `switch` — statuses, browsers, environments, HTTP methods (files `211`–`214`)
 - ✅ Chapter 29 — **Generics**: `<T>` generic functions, generic classes (`TestDataStorage<T>`), generic wrappers, `!` non-null assertion (files `215`–`217`)
 - ✅ Chapter 30 — **Access Modifiers & Abstract Classes**: `public`/`private`/`protected`/`readonly`, protected reuse in POM, `abstract` forced-contract classes (files `218`–`221`)
+- ✅ Chapter 31 — **Type Assertions, Override & Decorators**: `as` casts on `unknown`, the `override` keyword for safe POM inheritance, method decorators (`@Log`), replacement decorators and stacked/multiple decorators + local `tsconfig` with `experimentalDecorators` (files `222`–`228`)
 - ✅ **Per-chapter README** — every chapter folder now has its own deep-dive README.md
 
 ---
